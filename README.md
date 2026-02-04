@@ -1,186 +1,166 @@
-🚀 Features
+# 🎙 Voice Authentication System
 
-🎤 Voice Enrollment (register user by voice)
+A secure **voice-based authentication system** built using **FastAPI, Deep Learning, and Gradio**.
+This project performs **speaker verification** and basic **anti-spoofing** to prevent unauthorized access using recorded or fake voices.
 
-🔓 Voice Authentication (verify speaker identity)
+---
 
-🧠 Deep Learning based speaker embeddings
+## 📌 Features
 
-🛡 Anti-spoofing (deepfake / replay detection – experimental)
+* 🎤 **Voice Enrollment** – Register a user using their voice
+* 🔐 **Voice Authentication** – Verify user identity using voice
+* 🧠 **Deep Learning Speaker Embeddings**
+* 🛡️ **Liveness Detection (Anti-Spoofing)**
+* 🌐 **FastAPI Backend**
+* 🖥️ **Gradio Web UI**
+* 📡 REST API support for integration with other apps
 
-🌐 REST API using FastAPI
+---
 
-🖥 Interactive UI using Gradio
+## 🧠 Models Used
 
-🧰 Tech Stack
+* **Speaker Embedding Model:**
+  `speechbrain/spkrec-ecapa-voxceleb` (from Hugging Face)
 
-Backend: FastAPI
+* **Anti-Spoofing Model:**
+  RawNet2 (ASVspoof) – ONNX format
 
-Frontend/UI: Gradio
+* **Liveness Model:**
+  Audio-based spoof detection
 
-ML Models:
+---
 
-speechbrain/spkrec-ecapa-voxceleb (Speaker embedding)
+## 🧩 Tech Stack
 
-RawNet2 (ASVspoof anti-spoofing – optional)
+* Python
+* FastAPI
+* Gradio
+* PyTorch
+* SpeechBrain
+* NumPy, SciPy
+* Hugging Face Hub
+* ONNX Runtime
 
-Audio Processing: librosa, soundfile, numpy
+---
 
-Inference: PyTorch, ONNX Runtime
+## 📂 Project Structure
 
-API Testing: curl / browser / Gradio UI
+```
+Voice Auth/
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/        # API routes (enroll, auth)
+│   │   ├── core/       # ML engine (embedding, spoof, liveness)
+│   │   ├── deps.py
+│   │   └── main.py
+│   └── pretrained_models/
+│
+├── gradio_app.py
+└── README.md
+```
 
-🧠 Models Used
-1. Speaker Recognition Model
+---
 
-From Hugging Face:
+## 🚀 How to Run
 
-speechbrain/spkrec-ecapa-voxceleb
+### 1️⃣ Activate Virtual Environment
 
-
-Used to:
-
-Extract speaker embeddings
-
-Compare voice similarity using cosine similarity
-
-2. Anti-Spoofing Model (optional)
-RawNet2 (ASVspoof2019)
-
-
-Used to detect:
-
-Deepfake audio
-
-Replay attacks
-
-🏗 System Flow
-Enrollment:
-
-User records voice
-
-System extracts voice embedding
-
-Embedding is stored for that user
-
-Authentication:
-
-User records voice again
-
-System extracts new embedding
-
-Compares with stored embedding
-
-If similarity > threshold → Auth Success
-
-(Optional)
-5. Anti-spoof & liveness check
-
-📂 Project Structure
-backend/
- ├── app/
- │   ├── api/        # API routes
- │   ├── core/       # ML engine
- │   ├── deps.py     # Dependencies
- │   └── main.py     # FastAPI entry
- ├── pretrained_models/
- └── requirements.txt
-
-gradio_app.py        # UI
-
-▶️ How to Run
-1. Activate environment
+```bash
 source .venv/bin/activate
+```
 
-2. Run backend
+### 2️⃣ Start Backend
+
+```bash
 cd backend
 uvicorn app.main:app --reload --port 8000
+```
 
-3. Run UI
-cd backend/app
+### 3️⃣ Start Gradio UI
+
+```bash
 python gradio_app.py
+```
 
+Open browser:
 
-Open in browser:
-
+```
 http://127.0.0.1:7860
+```
 
-📡 API Endpoints
-Method	Endpoint	Purpose
-POST	/enroll/	Enroll voice
-POST	/auth/	Authenticate voice
-GET	/health	Server health
+---
 
-(Challenge-response was also experimented)
+## 🔁 API Endpoints
 
-⚠️ Challenges Faced
+| Endpoint   | Method | Description        |
+| ---------- | ------ | ------------------ |
+| `/enroll/` | POST   | Enroll user voice  |
+| `/auth/`   | POST   | Authenticate voice |
+| `/health`  | GET    | Server status      |
 
-Dependency conflicts (huggingface_hub vs gradio)
+---
 
-Model file path errors
+## 🧪 Workflow
 
-ONNX model loading issues
+1. User enrolls voice
+2. System extracts voice embedding
+3. Embedding stored in DB
+4. On login:
 
-Audio format mismatches
+   * New voice recorded
+   * Compared with stored embedding
+   * Liveness & spoof checks applied
+5. Access granted if match
 
-Routing errors in FastAPI
+---
 
-Challenge-response integration complexity
+## 🧠 Why Hugging Face?
 
-🤗 Why Hugging Face Was Used
+Hugging Face is used to:
 
-Hugging Face provided:
+* Download pretrained deep learning models
+* Load speaker recognition models
+* Use anti-spoofing ONNX models
+* Avoid training models from scratch
 
-Pretrained speaker recognition model
+---
 
-Model downloading and management
+## ⚠️ Challenges Faced
 
-Reliable research-grade models
+* Dependency conflicts (huggingface_hub, gradio)
+* Model file path issues
+* Audio format handling (WAV conversion)
+* API route mismatches
+* Anti-spoof model loading errors
+* CORS and JSON errors
+* File upload & microphone handling
 
-Easy integration with PyTorch
+---
 
-Without Hugging Face:
-❌ Training model from scratch
-❌ Large dataset requirement
-❌ Weeks of training
+## 🏦 Use Cases
 
-With Hugging Face:
-✅ Ready-to-use model
-✅ High accuracy
-✅ Faster development
+* Banking login
+* Secure apps
+* Attendance systems
+* Voice-based access control
+* Call center authentication
+* Smart lock systems
 
-🏦 Possible Applications
+---
 
-Banking login by voice
+## 👨‍💻 Author
 
-Call-center identity verification
+**Bhanu Mahesh B**
+Voice Authentication using Deep Learning
 
-Smart home authentication
+---
 
-Secure apps
+## 📌 Future Improvements
 
-IVR systems
+* Multi-factor auth (voice + OTP)
+* Database (MySQL/PostgreSQL)
+* Mobile app integration
+* Noise-robust models
+* Cloud deployment
 
-KYC systems
-
-📌 Future Improvements
-
-Proper SQL database for embeddings
-
-Stronger anti-spoofing
-
-Mobile app integration
-
-Multi-language support
-
-Model fine-tuning
-
-JWT authentication
-
-Cloud deployment
-
-👨‍💻 Author
-
-Bhanu Mahesh
-Computer Science (AI/ML)
-Voice Biometrics Project
