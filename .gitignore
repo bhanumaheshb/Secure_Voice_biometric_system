@@ -1,0 +1,6 @@
+gradio_venv/
+.venv/
+__pycache__/
+*.pyc
+*.onnx
+backend/pretrained_models/

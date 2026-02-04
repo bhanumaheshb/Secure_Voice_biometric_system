@@ -1,0 +1,16 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+
+sqlalchemy==2.0.30
+pymysql==1.1.1
+python-dotenv==1.0.1
+pydantic==2.7.1
+python-multipart==0.0.9
+
+soundfile==0.12.1
+
+torch==2.9.1
+torchaudio==2.9.1
+speechbrain==0.5.14
+
+numpy==1.26.4
