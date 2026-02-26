@@ -1,6 +1,23 @@
+
 gradio_venv/
 .venv/
 __pycache__/
 *.pyc
 *.onnx
 backend/pretrained_models/
+# Mac
+.DS_Store
+
+# Python
+venv/
+__pycache__/
+*.pyc
+voiceauth.db
+.env
+
+# Node
+node_modules/
+package-lock.json
+
+# Logs
+*.log

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.deps import get_db, get_voice_engine
 from app.models.orm_models import Client, User, VoiceProfile, AuthLog
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 def verify_api_key(x_api_key: str | None) -> None:

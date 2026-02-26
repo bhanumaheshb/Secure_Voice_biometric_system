@@ -1,0 +1,359 @@
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+const API_BASE = "http://127.0.0.1:8000";
+const API_KEY = "dev-secret-key";
+
+export default function Login() {
+  const [userId, setUserId] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const navigate = useNavigate();
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timeoutRef = useRef<number | null>(null);
+
+  // ---------- RECORD ----------
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = mediaRecorder;
+    chunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      chunksRef.current.push(event.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      const webmBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+      const wavBlob = await convertToWav(webmBlob);
+
+      setBlob(wavBlob);
+      setRecording(false);
+
+      stream.getTracks().forEach((track) => track.stop());
+    };
+
+    mediaRecorder.start();
+    setRecording(true);
+
+    timeoutRef.current = window.setTimeout(() => {
+      mediaRecorder.stop();
+    }, 30000);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
+  const resetRecording = () => {
+    setBlob(null);
+  };
+
+  // ---------- Convert WEBM → WAV ----------
+  const convertToWav = async (blob: Blob) => {
+    const audioContext = new AudioContext();
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const wavBuffer = encodeWAV(audioBuffer);
+    return new Blob([wavBuffer], { type: "audio/wav" });
+  };
+
+  const encodeWAV = (audioBuffer: AudioBuffer) => {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const samples = audioBuffer.getChannelData(0);
+
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+
+    return buffer;
+  };
+
+  // ---------- VERIFY ----------
+const verifySpeaker = async () => {
+  if (!blob) {
+    alert("Record voice first");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("external_user_id", userId);
+  formData.append("file", blob, "login.wav");
+
+  const res = await fetch(`${API_BASE}/auth/`, {
+    method: "POST",
+    headers: {
+      "x-api-key": API_KEY,
+    },
+    body: formData,
+  });
+
+  const data = await res.json();
+
+  // Show full backend response
+  alert(
+    `Auth: ${data.auth}
+Reason: ${data.reason}
+Live Prob: ${data.live_prob}
+Similarity: ${data.similarity}`
+  );
+
+  // If success → go to dashboard
+  if (data.auth) {
+    localStorage.setItem("isAuth", "true");
+    localStorage.setItem("userId", userId);
+    navigate("/dashboard");
+  }
+};
+
+  return (
+    <div style={{ padding: 40 }}>
+      <h2>🔐 Voice Login</h2>
+
+      <input
+        placeholder="User ID"
+        value={userId}
+        onChange={(e) => setUserId(e.target.value)}
+      />
+
+      <hr />
+
+      <button onClick={startRecording} disabled={recording}>
+        Start
+      </button>
+
+      <button onClick={stopRecording} disabled={!recording}>
+        Stop
+      </button>
+
+      <button onClick={resetRecording}>
+        Reset
+      </button>
+
+      {blob && <audio controls src={URL.createObjectURL(blob)} />}
+
+      <hr />
+
+      <button onClick={verifySpeaker}>
+        Verify Speaker
+      </button>
+    </div>
+  );
+}
+
+sign upppp
+
+import { useState, useRef } from "react";
+
+export default function Signup() {
+  const [userId, setUserId] = useState("");
+  const [displayName, setDisplayName] = useState("");
+
+  const [recording1, setRecording1] = useState(false);
+  const [recording2, setRecording2] = useState(false);
+
+  const [blob1, setBlob1] = useState<Blob | null>(null);
+  const [blob2, setBlob2] = useState<Blob | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timeoutRef = useRef<number | null>(null);
+
+  // ---------- RECORD ----------
+  const startRecording = async (num: number) => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = mediaRecorder;
+    chunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      chunksRef.current.push(event.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      const webmBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+      const wavBlob = await convertToWav(webmBlob);
+
+      if (num === 1) {
+        setBlob1(wavBlob);
+        setRecording1(false);
+      } else {
+        setBlob2(wavBlob);
+        setRecording2(false);
+      }
+
+      stream.getTracks().forEach((track) => track.stop());
+    };
+
+    mediaRecorder.start();
+
+    if (num === 1) setRecording1(true);
+    if (num === 2) setRecording2(true);
+
+    // 30 second limit
+    timeoutRef.current = window.setTimeout(() => {
+      mediaRecorder.stop();
+    }, 30000);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
+  const resetRecording = (num: number) => {
+    if (num === 1) setBlob1(null);
+    else setBlob2(null);
+  };
+
+  // ---------- Convert WEBM → WAV ----------
+  const convertToWav = async (blob: Blob) => {
+    const audioContext = new AudioContext();
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const wavBuffer = encodeWAV(audioBuffer);
+    return new Blob([wavBuffer], { type: "audio/wav" });
+  };
+
+  const encodeWAV = (audioBuffer: AudioBuffer) => {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const samples = audioBuffer.getChannelData(0);
+
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+
+    return buffer;
+  };
+
+  // ---------- SUBMIT ----------
+  const handleSubmit = async () => {
+    if (!blob1 || !blob2) {
+      alert("Record both samples");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("external_user_id", userId);
+    formData.append("display_name", displayName);
+    formData.append("file1", blob1, "voice1.wav");
+    formData.append("file2", blob2, "voice2.wav");
+
+    const res = await fetch("http://127.0.0.1:8000/signup/enroll", {
+      method: "POST",
+      headers: {
+        "x-api-key": "dev-secret-key",
+      },
+      body: formData,
+    });
+
+    const data = await res.json();
+    alert(JSON.stringify(data));
+  };
+
+  return (
+    <div style={{ padding: 40 }}>
+      <h2>🎙 Voice Signup</h2>
+
+      <input
+        placeholder="User ID"
+        value={userId}
+        onChange={(e) => setUserId(e.target.value)}
+      />
+
+      <input
+        placeholder="Display Name"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+      />
+
+      <hr />
+
+      <h3>Recording 1</h3>
+      <button onClick={() => startRecording(1)} disabled={recording1}>
+        Start
+      </button>
+      <button onClick={stopRecording} disabled={!recording1}>
+        Stop
+      </button>
+      <button onClick={() => resetRecording(1)}>Reset</button>
+
+      {blob1 && <audio controls src={URL.createObjectURL(blob1)} />}
+
+      <hr />
+
+      <h3>Recording 2</h3>
+      <button onClick={() => startRecording(2)} disabled={recording2}>
+        Start
+      </button>
+      <button onClick={stopRecording} disabled={!recording2}>
+        Stop
+      </button>
+      <button onClick={() => resetRecording(2)}>Reset</button>
+
+      {blob2 && <audio controls src={URL.createObjectURL(blob2)} />}
+
+      <hr />
+
+      <button onClick={handleSubmit}>Enroll</button>
+    </div>
+  );
+}

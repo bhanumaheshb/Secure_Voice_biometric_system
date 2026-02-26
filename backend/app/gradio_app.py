@@ -27,7 +27,7 @@ def safe_json(resp):
         }
 
 
-# ---------------- ENROLL ----------------
+# ---------------- REGISTER ----------------
 def enroll(user, audio):
     if not user:
         return {"error": "Enter user ID"}
@@ -53,12 +53,12 @@ def enroll(user, audio):
         os.remove(path)
 
 
-# ---------------- STEP 1 AUTH ----------------
+# ---------------- LOGIN STEP 1 ----------------
 def verify_step1(user, audio):
     if not user:
-        return {"error": "Enter user ID"}
+        return {"error": "Enter user ID"}, False
     if audio is None:
-        return {"error": "Record audio"}
+        return {"error": "Record audio"}, False
 
     path = save_audio(audio)
 
@@ -71,7 +71,11 @@ def verify_step1(user, audio):
                 files={"file": f},
                 timeout=20
             )
-        return safe_json(r)
+        result = safe_json(r)
+
+        if result.get("success"):
+            return result, True
+        return result, False
     finally:
         os.remove(path)
 
@@ -79,7 +83,7 @@ def verify_step1(user, audio):
 # ---------------- GET CHALLENGE ----------------
 def get_challenge(user):
     if not user:
-        return "", ""
+        return ""
 
     r = requests.get(
         f"{API_BASE}/auth/challenge/",
@@ -88,15 +92,15 @@ def get_challenge(user):
     )
 
     data = safe_json(r)
-    return data.get("challenge", ""), data.get("challenge", "")
+    return data.get("challenge", "")
 
 
-# ---------------- VERIFY CHALLENGE ----------------
-def verify_challenge(user, audio, _):
+# ---------------- LOGIN STEP 2 ----------------
+def verify_challenge(user, audio):
     if not user:
-        return {"error": "Enter user ID"}
+        return {"error": "Enter user ID"}, False
     if audio is None:
-        return {"error": "Record audio"}
+        return {"error": "Record audio"}, False
 
     path = save_audio(audio)
 
@@ -108,44 +112,93 @@ def verify_challenge(user, audio, _):
                 files={"file": f},
                 timeout=25
             )
-        return safe_json(r)
+        result = safe_json(r)
+
+        if result.get("verified"):
+            return result, True
+        return result, False
     finally:
         os.remove(path)
 
 
+# ---------------- PAGE NAVIGATION ----------------
+def go_to_login():
+    return gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
+
+
+def go_to_register():
+    return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
+
+
+def go_to_dashboard():
+    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True)
+
+
 # ---------------- UI ----------------
-with gr.Blocks(title="Voice Authentication System") as demo:
+with gr.Blocks(title="Voice Auth System", theme=gr.themes.Soft()) as demo:
 
-    gr.Markdown("## 🔐 Voice Authentication (Anti-Spoof + Challenge)")
+    gr.Markdown("# 🔐 Secure Voice Authentication System")
 
-    user = gr.Textbox(label="User ID", placeholder="e.g. bhanu")
+    login_state = gr.State(False)
 
-    # -------- ENROLL --------
-    with gr.Tab("🎙 Enroll Voice"):
-        audio_en = gr.Audio(sources=["microphone"], type="numpy")
-        en_btn = gr.Button("Enroll")
-        en_out = gr.JSON()
-        en_btn.click(enroll, [user, audio_en], en_out)
+    # -------- REGISTER PAGE --------
+    with gr.Column(visible=True) as register_page:
+        gr.Markdown("## 📝 Register")
 
-    # -------- STEP 1 --------
-    with gr.Tab("🔓 Authenticate (Step 1)"):
-        audio1 = gr.Audio(sources=["microphone"], type="numpy")
-        v1_btn = gr.Button("Verify Speaker")
-        v1_out = gr.JSON()
-        v1_btn.click(verify_step1, [user, audio1], v1_out)
+        reg_user = gr.Textbox(label="User ID")
+        reg_audio = gr.Audio(sources=["microphone"], type="numpy")
+        reg_btn = gr.Button("Register Voice")
+        reg_out = gr.JSON()
 
-    # -------- STEP 2 --------
-    with gr.Tab("🔐 Challenge Verification (Step 2)"):
+        reg_btn.click(enroll, [reg_user, reg_audio], reg_out)
+
+        go_login_btn = gr.Button("Already Registered? Login →")
+        go_login_btn.click(go_to_login, outputs=[register_page, login_page := gr.Column(), gr.Column()])
+
+
+    # -------- LOGIN PAGE --------
+    with gr.Column(visible=False) as login_page:
+        gr.Markdown("## 🔓 Login")
+
+        log_user = gr.Textbox(label="User ID")
+
+        gr.Markdown("### Step 1: Speaker Verification")
+        log_audio1 = gr.Audio(sources=["microphone"], type="numpy")
+        log_btn1 = gr.Button("Verify Speaker")
+        log_out1 = gr.JSON()
+
+        log_btn1.click(verify_step1, [log_user, log_audio1], [log_out1, login_state])
+
+        gr.Markdown("### Step 2: Challenge Verification")
         challenge_box = gr.Textbox(label="Challenge", interactive=False)
-        hidden = gr.Textbox(visible=False)
+        get_ch_btn = gr.Button("Generate Challenge")
+        get_ch_btn.click(get_challenge, [log_user], challenge_box)
 
-        g_btn = gr.Button("Generate Challenge")
+        log_audio2 = gr.Audio(sources=["microphone"], type="numpy")
+        log_btn2 = gr.Button("Verify Challenge")
+        log_out2 = gr.JSON()
 
-        audio2 = gr.Audio(sources=["microphone"], type="numpy")
-        v2_btn = gr.Button("Verify Challenge")
-        v2_out = gr.JSON()
+        log_btn2.click(verify_challenge, [log_user, log_audio2], [log_out2, login_state])\
+            .then(lambda x: go_to_dashboard() if x else (gr.update(), gr.update(), gr.update()),
+                  login_state,
+                  outputs=[register_page, login_page, dashboard_page := gr.Column()])
 
-        g_btn.click(get_challenge, [user], [challenge_box, hidden])
-        v2_btn.click(verify_challenge, [user, audio2, hidden], v2_out)
+
+        back_btn = gr.Button("← Back to Register")
+        back_btn.click(go_to_register, outputs=[register_page, login_page, dashboard_page])
+
+
+    # -------- DASHBOARD PAGE --------
+    with gr.Column(visible=False) as dashboard_page:
+        gr.Markdown("## 🎉 Welcome to Dashboard")
+        gr.Markdown("""
+        ✅ Speaker Verified  
+        ✅ Challenge Passed  
+        🔒 You are securely authenticated  
+        """)
+
+        logout_btn = gr.Button("Logout")
+        logout_btn.click(go_to_register, outputs=[register_page, login_page, dashboard_page])
+
 
 demo.launch()

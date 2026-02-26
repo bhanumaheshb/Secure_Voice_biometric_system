@@ -1,90 +1,73 @@
-# backend/app/api/routes_enroll.py
-
-import os
-
-from fastapi import APIRouter, Depends, UploadFile, File, Header, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, Form, Header, Depends, HTTPException
 from sqlalchemy.orm import Session
+import os
+import numpy as np
 
 from app.deps import get_db, get_voice_engine
 from app.models.orm_models import Client, User, VoiceProfile
 from app.core.engine import serialize_embedding
 
-router = APIRouter()
+router = APIRouter(prefix="/signup/enroll", tags=["Signup"])
+
+API_KEY = os.getenv("API_MASTER_KEY", "dev-secret-key")
 
 
-def verify_api_key(x_api_key: str | None) -> None:
-    expected = os.getenv("API_MASTER_KEY", "dev-secret-key")
-    if x_api_key is None or x_api_key != expected:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-
-def get_or_create_default_client(db: Session) -> Client:
-    name = "default-client"
-    api_key = os.getenv("API_MASTER_KEY", "dev-secret-key")
-    client = db.query(Client).filter_by(name=name).first()
-    if client:
-        return client
-    client = Client(name=name, api_key=api_key)
-    db.add(client)
-    db.commit()
-    db.refresh(client)
-    return client
-
-
-@router.post("/")
-async def enroll_user(
+@router.post("/enroll/")
+async def enroll_double(
     external_user_id: str = Form(...),
-    display_name: str | None = Form(None),
-    file: UploadFile = File(...),
+    display_name: str = Form(...),
+    file1: UploadFile = File(...),
+    file2: UploadFile = File(...),
     x_api_key: str | None = Header(default=None),
     db: Session = Depends(get_db),
     engine=Depends(get_voice_engine),
 ):
-    """
-    Enroll or update a user's voice profile.
-    """
-    # 1) Check API key
-    verify_api_key(x_api_key)
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # 2) Read audio
-    audio_bytes = await file.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Empty audio file")
+    # Read both files
+    audio1 = await file1.read()
+    audio2 = await file2.read()
 
-    # 3) Liveness check (anti-spoof)
-    live_prob = engine.check_liveness(audio_bytes)
-    if live_prob < 0.7:
-        return {
-            "success": False,
-            "reason": "not_live_or_spoof",
-            "live_prob": live_prob,
-        }
+    if not audio1 or not audio2:
+        raise HTTPException(status_code=400, detail="Empty audio")
 
-    # 4) Extract embedding
-    emb = engine.extract_embedding(audio_bytes)
-    emb_str = serialize_embedding(emb)
+    # Extract embeddings
+    emb1 = engine.extract_embedding(audio1)
+    emb2 = engine.extract_embedding(audio2)
 
-    # 5) Get or create client
-    client = get_or_create_default_client(db)
+    # Average them (stronger biometric profile)
+    final_embedding = np.mean([emb1, emb2], axis=0)
+    emb_str = serialize_embedding(final_embedding)
 
-    # 6) Get or create user
+    # Get or create client
+    client = db.query(Client).filter_by(name="default-client").first()
+    if not client:
+        client = Client(name="default-client", api_key=API_KEY)
+        db.add(client)
+        db.commit()
+        db.refresh(client)
+
+    # Get or create user
     user = (
         db.query(User)
         .filter(User.client_id == client.id, User.external_user_id == external_user_id)
         .first()
     )
+
     if not user:
         user = User(
             client_id=client.id,
             external_user_id=external_user_id,
-            display_name=display_name or external_user_id,
+            display_name=display_name,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
-    # 7) Create or update voice profile (only one profile per user for now)
-    profile = db.query(VoiceProfile).filter(VoiceProfile.user_id == user.id).first()
+    # Save voice profile
+    profile = db.query(VoiceProfile).filter_by(user_id=user.id).first()
+
     if not profile:
         profile = VoiceProfile(
             user_id=user.id,
@@ -99,7 +82,6 @@ async def enroll_user(
 
     return {
         "success": True,
+        "message": "Voice enrolled successfully",
         "user_id": user.id,
-        "live_prob": live_prob,
-        "message": "Voice enrolled/updated successfully",
     }

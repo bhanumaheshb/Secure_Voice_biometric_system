@@ -67,7 +67,7 @@ Voice Auth/
 ### 1️⃣ Activate Virtual Environment
 
 ```bash
-source .venv/bin/activate
+source venv/bin/activate
 ```
 
 ### 2️⃣ Start Backend
